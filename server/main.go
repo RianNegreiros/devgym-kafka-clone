@@ -3,9 +3,13 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
+	"syscall"
 )
 
 // Message struct represents a message in a topic
@@ -22,14 +26,22 @@ type Topic struct {
 
 // Server struct represents the TCP server
 type Server struct {
-	Topics map[string]*Topic
-	mu     sync.Mutex
+	Topics   map[string]*Topic
+	mu       sync.Mutex
+	clients  map[net.Conn]struct{}
+	wg       sync.WaitGroup
+	shutdown chan struct{}
 }
 
 func main() {
 	server := &Server{
-		Topics: make(map[string]*Topic),
+		Topics:   make(map[string]*Topic),
+		clients:  make(map[net.Conn]struct{}),
+		shutdown: make(chan struct{}),
 	}
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	listener, err := net.Listen("tcp", "localhost:8080")
 	if err != nil {
@@ -41,35 +53,64 @@ func main() {
 	fmt.Println("Server is listening on localhost:8080")
 
 	for {
-		conn, err := listener.Accept()
-		if err != nil {
-			fmt.Println("Error accepting connection:", err)
-			continue
-		}
+		select {
+		case sig := <-c:
+			fmt.Printf("Received signal: %v\n", sig)
+			close(server.shutdown)
+			server.wg.Wait()
+			fmt.Println("Server is shutting down.")
+			return
+		default:
+			conn, err := listener.Accept()
+			if err != nil {
+				fmt.Println("Error accepting connection:", err)
+				continue
+			}
 
-		go handleConnection(conn, server)
+			server.mu.Lock()
+			server.clients[conn] = struct{}{}
+			server.mu.Unlock()
+
+			server.wg.Add(1)
+			go handleConnection(conn, server)
+		}
 	}
 }
 
 func handleConnection(conn net.Conn, server *Server) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		server.mu.Lock()
+		delete(server.clients, conn)
+		server.mu.Unlock()
+		server.wg.Done()
+	}()
 
 	scanner := bufio.NewScanner(conn)
 	for scanner.Scan() {
-		command := scanner.Text()
-
-		switch command {
-		case "PUBLISH":
-			if err := handlePublish(conn, server); err != nil {
-				fmt.Println("Error handling publish:", err)
-			}
-		case "CONSUME":
-			if err := handleConsume(conn, server); err != nil {
-				fmt.Println("Error handling consume:", err)
-			}
+		select {
+		case <-server.shutdown:
+			return
 		default:
-			fmt.Fprintln(conn, "Unknown command:", command)
+			command := scanner.Text()
+
+			switch command {
+			case "PUBLISH":
+				if err := handlePublish(conn, server); err != nil {
+					log.Println("Error handling publish:", err)
+				}
+			case "CONSUME":
+				if err := handleConsume(conn, server); err != nil {
+					log.Println("Error handling consume:", err)
+				}
+			default:
+				fmt.Fprintln(conn, "Unknown command:", command)
+			}
 		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		log.Println("Error reading from connection:", err)
 	}
 }
 
