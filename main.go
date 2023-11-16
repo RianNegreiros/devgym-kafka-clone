@@ -3,7 +3,26 @@ package main
 import (
 	"fmt"
 	"net"
+	"sync"
 )
+
+// Message struct represents a message in a topic
+type Message struct {
+	Content string
+}
+
+// Topic struct represents a topic containing messages
+type Topic struct {
+	Name     string
+	Messages []Message
+	mu       sync.Mutex
+}
+
+// Server struct represents the TCP server
+type Server struct {
+	Topics map[string]*Topic
+	mu     sync.Mutex
+}
 
 func main() {
 	listener, err := net.Listen("tcp", "localhost:8080")
