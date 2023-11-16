@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"strings"
 
 	"github.com/fatih/color"
@@ -62,7 +63,9 @@ func publishMessage(conn net.Conn) {
 func consumeMessages(conn net.Conn) {
 	printPrompt("Enter topic name: ")
 	var topicName string
-	fmt.Scanln(&topicName)
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	topicName = scanner.Text()
 
 	fmt.Fprintf(conn, "CONSUME\n")
 	readServerPrompt(conn) // Read the "Enter topic name:" prompt from the server
