@@ -1,4 +1,4 @@
-module github.com/RianNegreiros/devgym-clone-kafka
+module github.com/RianNegreiros/devgym-kafka-clone
 
 go 1.21.1
 
