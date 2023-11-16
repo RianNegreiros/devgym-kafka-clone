@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 )
 
@@ -59,20 +60,30 @@ func handleConnection(conn net.Conn, server *Server) {
 
 		switch command {
 		case "PUBLISH":
-			handlePublish(conn, server)
+			if err := handlePublish(conn, server); err != nil {
+				fmt.Println("Error handling publish:", err)
+			}
 		case "CONSUME":
-			handleConsume(conn, server)
+			if err := handleConsume(conn, server); err != nil {
+				fmt.Println("Error handling consume:", err)
+			}
 		default:
 			fmt.Fprintln(conn, "Unknown command:", command)
 		}
 	}
 }
 
-func handlePublish(conn net.Conn, server *Server) {
+func handlePublish(conn net.Conn, server *Server) error {
 	fmt.Fprintln(conn, "Enter topic name:")
 	scanner := bufio.NewScanner(conn)
 	scanner.Scan()
 	topicName := scanner.Text()
+
+	// Validate topic name
+	if topicName == "" || strings.TrimSpace(topicName) == "" {
+		fmt.Fprintln(conn, "Invalid topic name.")
+		return nil
+	}
 
 	server.mu.Lock()
 	topic, ok := server.Topics[topicName]
@@ -91,9 +102,11 @@ func handlePublish(conn net.Conn, server *Server) {
 	topic.mu.Unlock()
 
 	fmt.Fprintln(conn, "Message published successfully.")
+
+	return nil
 }
 
-func handleConsume(conn net.Conn, server *Server) {
+func handleConsume(conn net.Conn, server *Server) error {
 	fmt.Fprintln(conn, "Enter topic name:")
 	scanner := bufio.NewScanner(conn)
 	scanner.Scan()
@@ -104,15 +117,19 @@ func handleConsume(conn net.Conn, server *Server) {
 	if !ok {
 		server.mu.Unlock()
 		fmt.Fprintln(conn, "Topic not found.")
-		return
+		return nil
 	}
 	server.mu.Unlock()
 
 	topic.mu.Lock()
+	defer topic.mu.Unlock()
+
 	for _, message := range topic.Messages {
 		fmt.Fprintln(conn, message.Content)
+		conn.Write([]byte("\n")) // Separate messages with a newline
 	}
-	topic.mu.Unlock()
 
 	fmt.Fprintln(conn, "Waiting for new messages...")
+
+	return nil
 }
