@@ -72,7 +72,7 @@ func consumeMessages(conn net.Conn) {
 	printInfo("Messages from the server:")
 	for {
 		response := readServerPrompt(conn)
-		if strings.TrimSpace(response) == "" {
+		if response == "END_OF_MESSAGES" {
 			break
 		}
 		printSuccess(response)

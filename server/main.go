@@ -126,10 +126,11 @@ func handleConsume(conn net.Conn, server *Server) error {
 
 	for _, message := range topic.Messages {
 		fmt.Fprintln(conn, message.Content)
-		conn.Write([]byte("\n")) // Separate messages with a newline
 	}
 
-	fmt.Fprintln(conn, "Waiting for new messages...")
+	// Send an extra newline to indicate the end of messages
+	conn.Write([]byte("\n"))
+	fmt.Fprintln(conn, "END_OF_MESSAGES")
 
 	return nil
 }
