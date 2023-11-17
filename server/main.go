@@ -33,6 +33,13 @@ type Server struct {
 	shutdown chan struct{}
 }
 
+// Add constants for commands and responses
+const (
+	PublishCommand      = "PUBLISH"
+	ConsumeCommand      = "CONSUME"
+	EndOfMessagesMarker = "END_OF_MESSAGES"
+)
+
 func main() {
 	server := &Server{
 		Topics:   make(map[string]*Topic),
@@ -45,8 +52,7 @@ func main() {
 
 	listener, err := net.Listen("tcp", "localhost:8080")
 	if err != nil {
-		fmt.Println("Error starting server:", err)
-		return
+		log.Fatalf("Error starting server: %v", err)
 	}
 	defer listener.Close()
 
@@ -63,7 +69,7 @@ func main() {
 		default:
 			conn, err := listener.Accept()
 			if err != nil {
-				fmt.Println("Error accepting connection:", err)
+				log.Println("Error accepting connection:", err)
 				continue
 			}
 
@@ -95,13 +101,13 @@ func handleConnection(conn net.Conn, server *Server) {
 			command := scanner.Text()
 
 			switch command {
-			case "PUBLISH":
+			case PublishCommand:
 				if err := handlePublish(conn, server); err != nil {
-					log.Println("Error handling publish:", err)
+					fmt.Fprintln(conn, "Error handling publish:", err)
 				}
-			case "CONSUME":
+			case ConsumeCommand:
 				if err := handleConsume(conn, server); err != nil {
-					log.Println("Error handling consume:", err)
+					fmt.Fprintln(conn, "Error handling consume:", err)
 				}
 			default:
 				fmt.Fprintln(conn, "Unknown command:", command)
@@ -171,7 +177,7 @@ func handleConsume(conn net.Conn, server *Server) error {
 
 	// Send an extra newline to indicate the end of messages
 	conn.Write([]byte("\n"))
-	fmt.Fprintln(conn, "END_OF_MESSAGES")
+	fmt.Fprintln(conn, EndOfMessagesMarker)
 
 	return nil
 }

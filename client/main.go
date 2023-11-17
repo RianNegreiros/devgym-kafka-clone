@@ -11,11 +11,19 @@ import (
 	"github.com/fatih/color"
 )
 
+// Add constants for commands and responses
+const (
+	PublishCommand      = "PUBLISH"
+	ConsumeCommand      = "CONSUME"
+	ExitCommand         = "EXIT"
+	EndOfMessagesMarker = "END_OF_MESSAGES"
+)
+
 func main() {
 	conn, err := net.Dial("tcp", "localhost:8080")
 	if err != nil {
 		printError("Error connecting to server:", err)
-		return
+		os.Exit(1)
 	}
 	defer conn.Close()
 
@@ -24,14 +32,18 @@ func main() {
 	for {
 		fmt.Print("Enter command (PUBLISH/CONSUME/EXIT): ")
 		var command string
-		fmt.Scanln(&command)
+		_, err := fmt.Scanln(&command)
+		if err != nil {
+			printError("Error reading user input:", err)
+			continue // or return, depending on your desired behavior
+		}
 
 		switch strings.ToUpper(command) {
-		case "PUBLISH":
+		case PublishCommand:
 			publishMessage(conn)
-		case "CONSUME":
+		case ConsumeCommand:
 			consumeMessages(conn)
-		case "EXIT":
+		case ExitCommand:
 			printSuccess("Exiting.")
 			return
 		default:
@@ -43,11 +55,19 @@ func main() {
 func publishMessage(conn net.Conn) {
 	printPrompt("Enter topic name: ")
 	var topicName string
-	fmt.Scanln(&topicName)
+	_, err := fmt.Scanln(&topicName)
+	if err != nil {
+		printError("Error reading user input:", err)
+		return
+	}
 
 	printPrompt("Enter message content: ")
 	var messageContent string
-	fmt.Scanln(&messageContent)
+	_, err = fmt.Scanln(&messageContent)
+	if err != nil {
+		printError("Error reading user input:", err)
+		return
+	}
 
 	fmt.Fprintf(conn, "PUBLISH\n")
 	readServerPrompt(conn) // Read the "Enter topic name:" prompt from the server
@@ -75,7 +95,7 @@ func consumeMessages(conn net.Conn) {
 	printInfo("Messages from the server:")
 	for {
 		response := readServerPrompt(conn)
-		if response == "END_OF_MESSAGES" {
+		if response == EndOfMessagesMarker {
 			break
 		}
 		printSuccess(response)
