@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bufio"
@@ -11,21 +11,21 @@ import (
 	"github.com/fatih/color"
 )
 
-// Add constants for commands and responses
-const (
-	PublishCommand      = "PUBLISH"
-	ConsumeCommand      = "CONSUME"
-	ExitCommand         = "EXIT"
-	EndOfMessagesMarker = "END_OF_MESSAGES"
-)
+// Client represents the client application.
+type Client struct {
+	conn net.Conn
+}
 
-func main() {
-	conn, err := net.Dial("tcp", "localhost:8080")
-	if err != nil {
-		printError("Error connecting to server:", err)
-		os.Exit(1)
+// NewClient creates a new Client instance.
+func NewClient(conn net.Conn) *Client {
+	return &Client{
+		conn: conn,
 	}
-	defer conn.Close()
+}
+
+// Run starts the client application.
+func (c *Client) Run() {
+	defer c.conn.Close()
 
 	printSuccess("Connected to server.")
 
@@ -35,14 +35,14 @@ func main() {
 		_, err := fmt.Scanln(&command)
 		if err != nil {
 			printError("Error reading user input:", err)
-			continue // or return, depending on your desired behavior
+			continue
 		}
 
 		switch strings.ToUpper(command) {
 		case PublishCommand:
-			publishMessage(conn)
+			c.publishMessage()
 		case ConsumeCommand:
-			consumeMessages(conn)
+			c.consumeMessages()
 		case ExitCommand:
 			printSuccess("Exiting.")
 			return
@@ -52,7 +52,7 @@ func main() {
 	}
 }
 
-func publishMessage(conn net.Conn) {
+func (c *Client) publishMessage() {
 	printPrompt("Enter topic name: ")
 	var topicName string
 	_, err := fmt.Scanln(&topicName)
@@ -69,32 +69,32 @@ func publishMessage(conn net.Conn) {
 		return
 	}
 
-	fmt.Fprintf(conn, "PUBLISH\n")
-	readServerPrompt(conn) // Read the "Enter topic name:" prompt from the server
+	fmt.Fprintf(c.conn, "PUBLISH\n")
+	readServerPrompt(c.conn) // Read the "Enter topic name:" prompt from the server
 
-	fmt.Fprintf(conn, "%s\n", topicName)
-	readServerPrompt(conn) // Read the "Enter message content:" prompt from the server
+	fmt.Fprintf(c.conn, "%s\n", topicName)
+	readServerPrompt(c.conn) // Read the "Enter message content:" prompt from the server
 
-	fmt.Fprintf(conn, "%s\n", messageContent)
+	fmt.Fprintf(c.conn, "%s\n", messageContent)
 
-	printSuccess("Server response: ", readServerPrompt(conn)) // Read the "Message published successfully." response
+	printSuccess("Server response: ", readServerPrompt(c.conn)) // Read the "Message published successfully." response
 }
 
-func consumeMessages(conn net.Conn) {
+func (c *Client) consumeMessages() {
 	printPrompt("Enter topic name: ")
 	var topicName string
 	scanner := bufio.NewScanner(os.Stdin)
 	scanner.Scan()
 	topicName = scanner.Text()
 
-	fmt.Fprintf(conn, "CONSUME\n")
-	readServerPrompt(conn) // Read the "Enter topic name:" prompt from the server
+	fmt.Fprintf(c.conn, "CONSUME\n")
+	readServerPrompt(c.conn) // Read the "Enter topic name:" prompt from the server
 
-	fmt.Fprintf(conn, "%s\n", topicName)
+	fmt.Fprintf(c.conn, "%s\n", topicName)
 
 	printInfo("Messages from the server:")
 	for {
-		response := readServerPrompt(conn)
+		response := readServerPrompt(c.conn)
 		if response == EndOfMessagesMarker {
 			break
 		}
